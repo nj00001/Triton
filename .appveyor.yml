@@ -136,7 +136,7 @@ after_test:
   - cmd: cd src\libtriton\%configuration%
   - cmd: copy ..\..\..\%Z3_PKG_NAME%\bin\libz3.dll libz3.dll
   - cmd: copy triton.dll triton.pyd
-  - cmd: if "%platform%"=="Win32" 7z a -t7z c:\projects\triton
+  - cmd: if "%platform%"=="Win32" 7z a -t7z -r ..\..\..\..\triton.x32.release.7z c:\projects\triton\*
   - cmd: if "%platform%"=="x64" 7z a -t7z ..\..\..\..\triton.x64.release.7z *
 
 artifacts:
