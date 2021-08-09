@@ -22,7 +22,7 @@ jobs:
 
        
 before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install python-setuptools; fi
+  - sudo apt-get install python-setuptools
   - export CC="$C_COMPILER"
   - export CXX="$CXX_COMPILER"
   # Install pip
@@ -33,11 +33,6 @@ before_install:
   - unzip ${Z3_PKG}.zip
   # Back to /home/travis/build/JonathanSalwan
   - cd ..
-  # Install gcov
-  - if [[ "$GCOV" == "ON" ]]; then sudo ln -sf /usr/bin/gcov-5 /usr/bin/gcov; fi
-  - if [[ "$GCOV" == "ON" ]]; then wget http://ftp.de.debian.org/debian/pool/main/l/lcov/lcov_1.13.orig.tar.gz; fi
-  - if [[ "$GCOV" == "ON" ]]; then tar xf lcov_1.13.orig.tar.gz; fi
-  - if [[ "$GCOV" == "ON" ]]; then sudo make -C lcov-1.13/ install; fi
   # Install capstone
   - wget https://github.com/aquynh/capstone/archive/4.0.2.tar.gz
   - tar -xf ./4.0.2.tar.gz
@@ -46,22 +41,22 @@ before_install:
   - sudo make install
   - cd ../
   # Install unicorn. Only test AArch64 with Unicorn on Linux.
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then git clone https://github.com/unicorn-engine/unicorn; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cd ./unicorn; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then git checkout ec4c6365c3c91703b3725540100023f6a03db742; fi # 1.0.2-rc2
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then UNICORN_ARCHS="x86 arm aarch64" ./make.sh; fi # we use unicorn to only test some semantics
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo make install; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cd bindings/python; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo ${PYTHON_BINARY} ./setup.py install; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cd ../../../; fi
+  - git clone https://github.com/unicorn-engine/unicorn
+  - cd ./unicorn
+  - git checkout ec4c6365c3c91703b3725540100023f6a03db742 # 1.0.2-rc2
+  - UNICORN_ARCHS="x86 arm aarch64" ./make.sh # we use unicorn to only test some semantics
+  -  sudo make install
+  - cd bindings/python
+  - sudo ${PYTHON_BINARY} ./setup.py install
+  - cd ../../../
   # Install LIEF
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo ${PYTHON_BINARY} -m pip install https://github.com/lief-project/LIEF/releases/download/0.7.0/linux_lief-0.7.0_py${PYTHON_VERSION}.tar.gz; fi
+  - sudo ${PYTHON_BINARY} -m pip install https://github.com/lief-project/LIEF/releases/download/0.7.0/linux_lief-0.7.0_py${PYTHON_VERSION}.tar.gz
   # Download pin
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then wget -U 'TritonBrowser/13.37 (X11; Linux x86_64; rv:31.337) Firefox/30.0' http://software.intel.com/sites/landingpage/pintool/downloads/pin-2.14-71313-gcc.4.4.7-linux.tar.gz; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then tar -xf pin-2.14-71313-gcc.4.4.7-linux.tar.gz; fi
+  - wget -U 'TritonBrowser/13.37 (X11; Linux x86_64; rv:31.337) Firefox/30.0' http://software.intel.com/sites/landingpage/pintool/downloads/pin-2.14-71313-gcc.4.4.7-linux.tar.gz
+  - tar -xf pin-2.14-71313-gcc.4.4.7-linux.tar.gz
   # Move Triton into pin
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then mv ./Triton ./pin-2.14-71313-gcc.4.4.7-linux/source/tools/; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cd ./pin-2.14-71313-gcc.4.4.7-linux/source/tools/Triton; fi
+  - mv ./Triton ./pin-2.14-71313-gcc.4.4.7-linux/source/tools/
+  - cd ./pin-2.14-71313-gcc.4.4.7-linux/source/tools/Triton
 
 install:
   # Prepare build
@@ -70,7 +65,7 @@ install:
 
 script:
   # Install
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cmake -DZ3_INCLUDE_DIRS=$PWD/../${Z3_PKG}/include -DZ3_LIBRARIES=$PWD/../${Z3_PKG}/bin/libz3.so -DCMAKE_C_COMPILER=$C_COMPILER -DCMAKE_CXX_COMPILER=$CXX_COMPILER -DGCOV=${GCOV:OFF} -DPYTHON_VERSION=${PYTHON_VERSION} -DPINTOOL=${PINTOOL:OFF} -DKERNEL4=${KERNEL4:OFF} ..; fi
+  - cmake -DZ3_INCLUDE_DIRS=$PWD/../${Z3_PKG}/include -DZ3_LIBRARIES=$PWD/../${Z3_PKG}/bin/libz3.so -DCMAKE_C_COMPILER=$C_COMPILER -DCMAKE_CXX_COMPILER=$CXX_COMPILER -DGCOV=${GCOV:OFF} -DPYTHON_VERSION=${PYTHON_VERSION} -DPINTOOL=${PINTOOL:OFF} -DKERNEL4=${KERNEL4:OFF} ..
   - make -j2
   # Unittests
   # - travis_wait 60 make check
