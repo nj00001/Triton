@@ -85,4 +85,5 @@ deploy:
   file: "/home/travis/build/nj00001/pin-2.14-71313-gcc.4.4.7-linux/source/tools/Triton/build/src/libtriton/libtriton.so"
   skip_cleanup: true
   overwrite: true
-  
+  on:
+    tags: true
