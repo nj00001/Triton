@@ -84,7 +84,7 @@ deploy:
   file:  "/home/travis/build/nj00001/pin-2.14-71313-gcc.4.4.7-linux/source/tools/Triton/build/src/libtriton/libtriton.so"
   skip_cleanup: true
   api_key:
-    secure: "$GITHUB_TOKEN"
+    secure: "hp0A6EGyUckd+slqXn+aBsPUJ4I2lt2fEQGc5wZL4nAFj40Beu2+T476fWP6Dbs/BQwWSLLrQF5kg02jm1ul/zxU8AoRqj5UW54/UuqZmlOUAIXVJ4CkQStjnD6m7deUGJFHPsCg0lfPhqa1IvVkapMGSICSVgZl2ZYM66O3vWatp5S7gT/1lUwqKyIip5f1EsCxCJw5fL0q4sTASsbXgXC5Yzq2qZymVea4u2ZjOjGAYEZf4/P2Vah/sS1HJMH+j84/tja/3LFO7na7VRuzSCxWmiuc3Lqi3AzrpEy5OvR7pvCCq2ErvEUn1XR2wSXDfb0cVlJZ+XtfZJNs/gYizR4dwfJAC/vsuOPy2zjaa6Liznp2ojvPoK3C/5kWRwSyWtPEt5c0Ipsj4kMb7S79hoVUdYLwP1u5WJ8Wsgn5NXlu8nXbl1/nlxkieL4F2v3ibcOeYnT/InOJL4mr/KmehPjZa5iP0fdHB48vtOqzANOA0QGMgRXqSroCTKjoEIoY73SqAOv5SA4geAeAyVr2h5kzZyItuD2qPMBdabP8BJzllKje6wP2MMy54pJMdefPJOkcYTDfn2CpQCsIbq7rBDKndKjlZIIJeoD61vRDFpQXfNlEF9wGG8EJlwZ+ZjOOj3g9+sMhd54zH64UCpTu9sMkPi167fTZU/xAOuw0cMg="
   on:
     tags: true #发布  tag版 时才进行发包   
     draft: false # 不发表drafs
