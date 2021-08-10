@@ -11,14 +11,14 @@ cache:
 jobs:
     include:
         - os: linux
-          name: "Linux Xenial with gcc 5.0 and Python3.6"
+          name: "Linux Xenial with gcc 5.0 and Python3.7"
           dist: xenial
           compiler: gcc
           addons:
             apt:
               sources: ['ubuntu-toolchain-r-test', 'deadsnakes']
-              packages: ['g++-5', 'ccache', 'libboost1.58-all-dev', 'cmake', 'cmake-data', 'python3.6-dev']
-          env: [ CXX_COMPILER=g++-5, C_COMPILER=gcc-5, Z3_PKG=z3-4.8.9-x64-ubuntu-16.04, PYTHON_VERSION=3.6, PYTHON_INCLUDE_DIR=/usr/include/python3.6m, PYTHON_LIBRARY=/usr/lib/libpython3.6m.so, PYTHON_BINARY=/usr/bin/python3.6 ]
+              packages: ['g++-5', 'ccache', 'libboost1.58-all-dev', 'cmake', 'cmake-data', 'python3.7-dev']
+          env: [ CXX_COMPILER=g++-5, C_COMPILER=gcc-5, Z3_PKG=z3-4.8.9-x64-ubuntu-16.04, PYTHON_VERSION=3.7, PYTHON_INCLUDE_DIR=/usr/include/python3.7m, PYTHON_LIBRARY=/usr/lib/libpython3.7m.so, PYTHON_BINARY=/usr/bin/python3.7 ]
 
        
 before_install:
@@ -68,7 +68,7 @@ script:
   - cmake -DZ3_INCLUDE_DIRS=$PWD/../${Z3_PKG}/include -DZ3_LIBRARIES=$PWD/../${Z3_PKG}/bin/libz3.so -DCMAKE_C_COMPILER=$C_COMPILER -DCMAKE_CXX_COMPILER=$CXX_COMPILER -DGCOV=${GCOV:OFF} -DPYTHON_VERSION=${PYTHON_VERSION} -DPINTOOL=${PINTOOL:OFF} -DKERNEL4=${KERNEL4:OFF} ..
   - make -j2
   # Unittests
-  # - travis_wait 60 make check
+  - travis_wait 60 make check
   # Check installation succeed
   - sudo make install
 
