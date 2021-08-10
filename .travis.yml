@@ -70,18 +70,19 @@ script:
   - cmake -DZ3_INCLUDE_DIRS=$PWD/../${Z3_PKG}/include -DZ3_LIBRARIES=$PWD/../${Z3_PKG}/bin/libz3.so -DCMAKE_C_COMPILER=$C_COMPILER -DCMAKE_CXX_COMPILER=$CXX_COMPILER -DGCOV=${GCOV:OFF} -DPYTHON_VERSION=${PYTHON_VERSION} -DPINTOOL=${PINTOOL:ON} -DKERNEL4=${KERNEL4:OFF} ..
   - make -j2
   # Unittests
-  - travis_wait 60 make check
+  # - travis_wait 60 make check
   # Check installation succeed
   - sudo make install
-  - zip -r triton.zip ./src/libtriton/*
-  - cp triton.zip /home/travis/build/nj00001
+  # - zip -r triton.zip ./src/libtriton/*
+  # - cp triton.zip /home/travis/build/nj00001
+  -  ./src/examples/cpp/simplification
   
 
     
 deploy:
   provider: releases
   api_key: ${GITHUB_TOKEN}
-  file: "triton.zip"
+  file: "/home/travis/build/nj00001/pin-2.14-71313-gcc.4.4.7-linux/source/tools/Triton/build/src/libtriton/libtriton.so"
   skip_cleanup: true
-  on:
-    tags: true
+  overwrite: true
+  
