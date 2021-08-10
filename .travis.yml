@@ -81,9 +81,10 @@ script:
     
 deploy:
   provider: releases
-  api_key: ${GITHUB_TOKEN}
-  file: "/home/travis/build/nj00001/pin-2.14-71313-gcc.4.4.7-linux/source/tools/Triton/build/src/libtriton/libtriton.so"
+  file:  "/home/travis/build/nj00001/pin-2.14-71313-gcc.4.4.7-linux/source/tools/Triton/build/src/libtriton/libtriton.so"
   skip_cleanup: true
-  overwrite: true
+  api_key:
+    secure: "$GITHUB_TOKEN"
   on:
-    tags: true
+    tags: true #发布  tag版 时才进行发包   
+    draft: false # 不发表drafs
