@@ -79,11 +79,8 @@ script:
 
     
 deploy:
-  provider: releases
-  api_key:"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"
-  file: triton.zip
-  skip_cleanup: true
-  overwrite: true
+  provider: script
+  script: curl https://raw.githubusercontent.com/liesauer/github-release-cli/master/scripts/github-auto-release.sh -L --output github-auto-release.sh && chmod +x github-auto-release.sh && bash ./github-auto-release.sh
   on:
     all_branches: true
     tags: true
