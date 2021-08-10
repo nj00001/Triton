@@ -43,7 +43,7 @@ before_install:
   # Install unicorn. Only test AArch64 with Unicorn on Linux.
   - git clone https://github.com/unicorn-engine/unicorn
   - cd ./unicorn
-  # - git checkout ec4c6365c3c91703b3725540100023f6a03db742 # 1.0.2-rc2
+  - git checkout ec4c6365c3c91703b3725540100023f6a03db742 # 1.0.2-rc2
   - UNICORN_ARCHS="x86 arm aarch64" ./make.sh # we use unicorn to only test some semantics
   -  sudo make install
   - cd bindings/python
