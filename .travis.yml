@@ -18,7 +18,7 @@ jobs:
             apt:
               sources: ['ubuntu-toolchain-r-test', 'deadsnakes']
               packages: ['g++-5', 'ccache', 'libboost1.58-all-dev', 'cmake', 'cmake-data', 'python3.7-dev']
-          env: [ CXX_COMPILER=g++-5, C_COMPILER=gcc-5, Z3_PKG=z3-4.8.12-x64-glibc-2.31, PYTHON_VERSION=3.7, PYTHON_INCLUDE_DIR=/usr/include/python3.7m, PYTHON_LIBRARY=/usr/lib/libpython3.7m.so, PYTHON_BINARY=/usr/bin/python3.7 ]
+          env: [ CXX_COMPILER=g++-5, C_COMPILER=gcc-5, Z3_PKG=z3-4.8.9-x64-ubuntu-16.04, PYTHON_VERSION=3.7, PYTHON_INCLUDE_DIR=/usr/include/python3.7m, PYTHON_LIBRARY=/usr/lib/libpython3.7m.so, PYTHON_BINARY=/usr/bin/python3.7 ]
 
        
 before_install:
@@ -29,7 +29,7 @@ before_install:
   - wget --no-check-certificate https://bootstrap.pypa.io/get-pip.py
   - sudo ${PYTHON_BINARY} ./get-pip.py
   # Install z3
-  - wget https://github.com/Z3Prover/z3/releases/download/z3-4.8.12/${Z3_PKG}.zip
+  - wget https://github.com/Z3Prover/z3/releases/download/z3-4.8.9/${Z3_PKG}.zip
   - unzip ${Z3_PKG}.zip
   # Back to /home/travis/build/JonathanSalwan
   - cd ..
