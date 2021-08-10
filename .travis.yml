@@ -18,7 +18,7 @@ jobs:
             apt:
               sources: ['ubuntu-toolchain-r-test', 'deadsnakes']
               packages: ['g++-5', 'ccache', 'libboost1.58-all-dev', 'cmake', 'cmake-data', 'python3.7-dev']
-          env: [ CXX_COMPILER=g++-5, C_COMPILER=gcc-5, Z3_PKG=z3-4.8.9-x64-ubuntu-16.04, PYTHON_VERSION=3.7, PYTHON_INCLUDE_DIR=/usr/include/python3.7m, PYTHON_LIBRARY=/usr/lib/libpython3.7m.so, PYTHON_BINARY=/usr/bin/python3.7 ]
+          env: [ CXX_COMPILER=g++-5, C_COMPILER=gcc-5, Z3_PKG=z3-4.8.12-x64-glibc-2.31, PYTHON_VERSION=3.7, PYTHON_INCLUDE_DIR=/usr/include/python3.7m, PYTHON_LIBRARY=/usr/lib/libpython3.7m.so, PYTHON_BINARY=/usr/bin/python3.7 ]
 
        
 before_install:
@@ -29,7 +29,7 @@ before_install:
   - wget --no-check-certificate https://bootstrap.pypa.io/get-pip.py
   - sudo ${PYTHON_BINARY} ./get-pip.py
   # Install z3
-  - wget https://github.com/Z3Prover/z3/releases/download/z3-4.8.9/${Z3_PKG}.zip
+  - wget https://github.com/Z3Prover/z3/releases/download/z3-4.8.12/${Z3_PKG}.zip
   - unzip ${Z3_PKG}.zip
   # Back to /home/travis/build/JonathanSalwan
   - cd ..
@@ -43,7 +43,7 @@ before_install:
   # Install unicorn. Only test AArch64 with Unicorn on Linux.
   - git clone https://github.com/unicorn-engine/unicorn
   - cd ./unicorn
-  - git checkout ec4c6365c3c91703b3725540100023f6a03db742 # 1.0.2-rc2
+  # - git checkout ec4c6365c3c91703b3725540100023f6a03db742 # 1.0.2-rc2
   - UNICORN_ARCHS="x86 arm aarch64" ./make.sh # we use unicorn to only test some semantics
   -  sudo make install
   - cd bindings/python
@@ -64,6 +64,8 @@ install:
   - cd build
 
 script:
+  # Needs for unittests
+  - sudo sh -c "echo 0 > /proc/sys/kernel/yama/ptrace_scope"
   # Install
   - cmake -DZ3_INCLUDE_DIRS=$PWD/../${Z3_PKG}/include -DZ3_LIBRARIES=$PWD/../${Z3_PKG}/bin/libz3.so -DCMAKE_C_COMPILER=$C_COMPILER -DCMAKE_CXX_COMPILER=$CXX_COMPILER -DGCOV=${GCOV:OFF} -DPYTHON_VERSION=${PYTHON_VERSION} -DPINTOOL=${PINTOOL:OFF} -DKERNEL4=${KERNEL4:OFF} ..
   - make -j2
