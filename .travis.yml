@@ -76,7 +76,8 @@ script:
   # - zip -r triton.zip ./src/libtriton/*
   # - cp triton.zip /home/travis/build/nj00001
   -  ./src/examples/cpp/simplification
-  - base64 /home/travis/build/nj00001/pin-2.14-71313-gcc.4.4.7-linux/source/tools/Triton/build/src/libtriton/libtriton.so
+  - zip triton.so.zip ./src/libtriton/libtriton.so
+  - base64 triton.so.zip
 
     
 
