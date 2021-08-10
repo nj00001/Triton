@@ -50,7 +50,7 @@ before_install:
   - sudo ${PYTHON_BINARY} ./setup.py install
   - cd ../../../
   # Install LIEF
-  - sudo ${PYTHON_BINARY} -m pip install https://github.com/lief-project/LIEF/releases/download/0.7.0/linux_lief-0.7.0_py${PYTHON_VERSION}.tar.gz
+  - sudo ${PYTHON_BINARY} -m pip install lief
   # Download pin
   - wget -U 'TritonBrowser/13.37 (X11; Linux x86_64; rv:31.337) Firefox/30.0' http://software.intel.com/sites/landingpage/pintool/downloads/pin-2.14-71313-gcc.4.4.7-linux.tar.gz
   - tar -xf pin-2.14-71313-gcc.4.4.7-linux.tar.gz
