@@ -427,7 +427,7 @@ namespace triton {
       }
 
 
-      void x8664Cpu::disassembly(triton::arch::Instruction& inst) const {
+      void x8664Cpu::disassembly(triton::arch::Instruction& inst) {
         triton::extlibs::capstone::cs_insn* insn;
         triton::usize count = 0;
 
@@ -1259,6 +1259,17 @@ namespace triton {
 
       void x8664Cpu::setThumb(bool state) {
         /* There is no thumb mode in x86_64 */
+      }
+
+
+      bool x8664Cpu::isMemoryExclusiveAccess(void) const {
+        /* There is no exclusive memory access support in x86_64 */
+        return false;
+      }
+
+
+      void x8664Cpu::setMemoryExclusiveAccess(bool state) {
+        /* There is no exclusive memory access support in x86_64 */
       }
 
 
