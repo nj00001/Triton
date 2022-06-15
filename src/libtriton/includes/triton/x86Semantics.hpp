@@ -8,6 +8,7 @@
 #ifndef TRITON_X86SEMANTICS_H
 #define TRITON_X86SEMANTICS_H
 
+#include <triton/archEnums.hpp>
 #include <triton/architecture.hpp>
 #include <triton/dllexport.hpp>
 #include <triton/instruction.hpp>
@@ -60,6 +61,9 @@ namespace triton {
           //! The AST Context API
           triton::ast::SharedAstContext astCtxt;
 
+          //! Exception status
+          triton::arch::exception_e exception;
+
         public:
           //! Constructor.
           TRITON_EXPORT x86Semantics(triton::arch::Architecture* architecture,
@@ -68,8 +72,8 @@ namespace triton {
                                      const triton::modes::SharedModes& modes,
                                      const triton::ast::SharedAstContext& astCtxt);
 
-          //! Builds the semantics of the instruction. Returns true if the instruction is supported.
-          TRITON_EXPORT bool buildSemantics(triton::arch::Instruction& inst);
+          //! Builds the semantics of the instruction. Returns `triton::arch::NO_FAULT` if succeed.
+          TRITON_EXPORT triton::arch::exception_e buildSemantics(triton::arch::Instruction& inst);
 
         private:
           //! Aligns the stack (add). Returns the new stack value.
@@ -89,6 +93,9 @@ namespace triton {
 
           //! Control flow semantics. Used to represent IP.
           void controlFlow_s(triton::arch::Instruction& inst);
+
+          //! Update the FPU x87 Tag Word (whenever an MMX register changes)
+          void updateFTW(triton::arch::Instruction& inst, const triton::engines::symbolic::SharedSymbolicExpression& parent);
 
           //! The AF semantics.
           void af_s(triton::arch::Instruction& inst,
@@ -637,6 +644,18 @@ namespace triton {
           //! The EXTRACTPS semantics.
           void extractps_s(triton::arch::Instruction& inst);
 
+          //! The FXRSTOR semantics.
+          void fxrstor_s(triton::arch::Instruction& inst);
+
+          //! The FXRSTOR64 semantics.
+          void fxrstor64_s(triton::arch::Instruction& inst);
+
+          //! The FXSAVE semantics.
+          void fxsave_s(triton::arch::Instruction& inst);
+
+          //! The FXSAVE64 semantics.
+          void fxsave64_s(triton::arch::Instruction& inst);
+
           //! The IDIV semantics.
           void idiv_s(triton::arch::Instruction& inst);
 
@@ -747,6 +766,9 @@ namespace triton {
 
           //! The LZCNT semantics.
           void lzcnt_s(triton::arch::Instruction& inst);
+
+          //! The INT3 semantics.
+          void int3_s(triton::arch::Instruction& inst);
 
           //! The MFENCE semantics.
           void mfence_s(triton::arch::Instruction& inst);

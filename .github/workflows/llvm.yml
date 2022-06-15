@@ -1,4 +1,4 @@
-name: Tests on Linux with LLVM
+name: Tests on Linux + LLVM
 
 on: [push, pull_request, workflow_dispatch]
 
@@ -50,8 +50,8 @@ jobs:
         run: |
           mkdir ./build
           cd ./build
-          cmake -DLLVM_INTERFACE=ON -DLLVM_INCLUDE_DIRS=$(llvm-config-12 --includedir) -DLLVM_LIBRARIES=$(llvm-config-12 --libfiles) ..
+          cmake -DLLVM_INTERFACE=on -DCMAKE_PREFIX_PATH=$(llvm-config --prefix) ..
           sudo make -j3 install
       - name: Unittests
         run: |
-          make -C build check
+          ctest --test-dir build --output-on-failure

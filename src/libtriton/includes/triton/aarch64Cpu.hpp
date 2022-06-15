@@ -18,11 +18,12 @@
 #include <triton/callbacks.hpp>
 #include <triton/cpuInterface.hpp>
 #include <triton/dllexport.hpp>
-#include <triton/externalLibs.hpp>
 #include <triton/instruction.hpp>
 #include <triton/memoryAccess.hpp>
 #include <triton/register.hpp>
 #include <triton/tritonTypes.hpp>
+
+
 
 //! The Triton namespace
 namespace triton {
@@ -67,7 +68,7 @@ namespace triton {
             triton::callbacks::Callbacks* callbacks;
 
             //! Capstone context
-            triton::extlibs::capstone::csh handle;
+            std::size_t handle;
 
             //! Copies a AArch64Cpu class.
             void copy(const AArch64Cpu& other);

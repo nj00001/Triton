@@ -25,6 +25,15 @@ namespace triton {
 
 
       void LiftingToPython::requiredFunctions(std::ostream& stream) {
+        stream << "def select(mem, index):" << std::endl;
+        stream << "    return mem[index]" << std::endl;
+
+        stream << std::endl;
+        stream << "def store(mem, index, value):" << std::endl;
+        stream << "    mem[index] = value" << std::endl;
+        stream << "    return mem" << std::endl;
+
+        stream << std::endl;
         stream << "def sx(bits, value):" << std::endl;
         stream << "    sign_bit = 1 << (bits - 1)" << std::endl;
         stream << "    return (value & (sign_bit - 1)) - (value & sign_bit)" << std::endl;
@@ -42,10 +51,18 @@ namespace triton {
         stream << "    return True" << std::endl;
 
         stream << std::endl;
+        stream << "def bswap(value, size):" << std::endl;
+        stream << "    v = value & 0xff" << std::endl;
+        stream << "    for index in range(8, size, 8):" << std::endl;
+        stream << "        v <<= 8" << std::endl;
+        stream << "        v |= (value >> index) & 0xff" << std::endl;
+        stream << "    return v" << std::endl;
+
+        stream << std::endl;
       }
 
 
-      std::ostream& LiftingToPython::liftToPython(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr) {
+      std::ostream& LiftingToPython::liftToPython(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr, bool icomment) {
         /* Save the AST representation mode */
         triton::ast::representations::mode_e mode = this->astCtxt->getRepresentationMode();
         this->astCtxt->setRepresentationMode(triton::ast::representations::PYTHON_REPRESENTATION);
@@ -67,11 +84,16 @@ namespace triton {
         /* Print required functions */
         this->requiredFunctions(stream);
 
+        /* Declare arrays if exist */
+        for (const auto& array : triton::ast::search(expr->getAst(), triton::ast::ARRAY_NODE)) {
+          auto n = this->astCtxt->declare(array);
+          stream << n << std::endl;
+        }
+
         /* Print symbolic variables */
         for (const auto& var : symVars) {
           auto n = this->astCtxt->declare(this->astCtxt->variable(var.second));
-          this->astCtxt->print(stream, n.get());
-          stream << std::endl;
+          stream << n << std::endl;
         }
 
         /* Sort SSA */
@@ -79,7 +101,18 @@ namespace triton {
 
         /* Print symbolic expressions */
         for (const auto& id : symExprs) {
-          stream << ssa[id]->getFormattedExpression() << std::endl;
+          auto& e = ssa[id];
+          stream << e->getFormattedExpression();
+          if (icomment && !e->getDisassembly().empty()) {
+            if (e->getComment().empty()) {
+              stream << " # ";
+            }
+            else {
+              stream << " - ";
+            }
+            stream << e->getDisassembly();
+          }
+          stream << std::endl;
         }
 
         /* Restore the AST representation mode */

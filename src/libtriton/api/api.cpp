@@ -23,7 +23,7 @@
 
 \section description_sec Description
 
-<b>Triton</b> is a dynamic binary analysis framework. It provides internal components like a
+<b>Triton</b> is a dynamic binary analysis library. It provides internal components like a
 <b>dynamic symbolic execution</b> engine, a <b>dynamic taint analysis</b> engine, <b>AST representation</b> of the
 <b>x86</b>, <b>x86-64</b>, <b>ARM32</b> and <b>AArch64</b> ISA semantic, an <b>expressions synthesis</b> engine,
 some <b>SMT simplification</b> passes, <b>SMT solver</b> interface to <b>Z3</b> and <b>Bitwuzla</b> and, the last
@@ -32,7 +32,7 @@ automate reverse engineering, perform software verification or just emulate code
 
 <br>
 <center>
-  <img src="http://triton.quarkslab.com/files/triton_v09_architecture.svg" width="40%"/>
+  <img src="https://triton-library.github.io/files/triton_v09_architecture.svg" width="40%"/>
 </center>
 
 <br>
@@ -157,77 +157,6 @@ automate reverse engineering, perform software verification or just emulate code
  target function is covered.</em>
 </li>
 </ul>
-
-
-<br>
-<hr>
-\section install_sec Installation
-
-To be able to compile Triton, you must install these libraries before:
-
- lib name                                                                      | version
--------------------------------------------------------------------------------|------------------
- [libboost](http://www.boost.org/)                                             | >= 1.68
- [libpython](https://www.python.org/)                                          | >= 3.6
- [libz3](https://github.com/Z3Prover/z3)                                       | >= 4.6.0
- [libcapstone](http://www.capstone-engine.org/)                                | >= 4.0.x
-
-<br>
-<hr>
-\subsection linux_install_sec Linux Installation
-
-Once the libraries are installed, you can use `cmake` and `make` to build `libTriton`.
-
-~~~~~~~~~~~~~{.sh}
-$ git clone https://github.com/JonathanSalwan/Triton.git
-$ cd Triton
-$ mkdir build
-$ cd build
-$ cmake ..
-$ sudo make -j2 install
-~~~~~~~~~~~~~
-
-<br>
-<hr>
-\subsection osx_install_sec OSX Installation
-
-On OSX `cmake` might have some difficulties finding the correct Python include/library paths.
-You can run the following to build independent of your Python version:
-
-~~~~~~~~~~~~~{.sh}
-$ brew install boost capstone z3
-$ git clone https://github.com/JonathanSalwan/Triton.git
-$ cd Triton
-$ mkdir build
-$ cd build
-$ cmake $(echo 'from os.path import abspath, join; from sysconfig import get_path; print("-DPYTHON_INCLUDE_DIR=%s -DPYTHON_LIBRARY=%s" % (get_path("include"), abspath(join(get_path("platlib"), "../../libpython3.7.dylib"))))' | python3) ..
-$ sudo make -j2 install
-~~~~~~~~~~~~~
-
-<br>
-<hr>
-\subsection windows_install_sec Windows Installation
-
-Once libraries installed, you can use `cmake` to generate the `.sln` file of `libTriton`.
-
-~~~~~~~~~~~~~{.sh}
-> git clone https://github.com/JonathanSalwan/Triton.git
-> cd Triton
-> mkdir build
-> cd build
-> cmake -G "Visual Studio 14 2015 Win64" \
-  -DBOOST_ROOT="C:/Users/jonathan/Works/Tools/boost_1_61_0" \
-  -DPYTHON_INCLUDE_DIRS="C:/Python36/include" \
-  -DPYTHON_LIBRARIES="C:/Python36/libs/python36.lib" \
-  -DZ3_INCLUDE_DIRS="C:/Users/jonathan/Works/Tools/z3-4.6.0-x64-win/include" \
-  -DZ3_LIBRARIES="C:/Users/jonathan/Works/Tools/z3-4.6.0-x64-win/bin/libz3.lib" \
-  -DCAPSTONE_INCLUDE_DIRS="C:/Users/jonathan/Works/Tools/capstone-4.0.2-win64/include" \
-  -DCAPSTONE_LIBRARIES="C:/Users/jonathan/Works/Tools/capstone-4.0.2-win64/capstone.lib" ..
-~~~~~~~~~~~~~
-
-However, if you prefer to directly download precompiled libraries, check out our [AppVeyor's artefacts](https://ci.appveyor.com/project/JonathanSalwan/triton/history).
-Note that if you use AppVeyor's artefacts, you probably have to install the [Visual C++ Redistributable](https://www.microsoft.com/en-US/download/details.aspx?id=30679)
-packages for Visual Studio 2012.
 
 */
 
@@ -531,13 +460,19 @@ namespace triton {
   }
 
 
+  void API::disassembly(triton::arch::BasicBlock& block, triton::uint64 addr) const {
+    this->checkArchitecture();
+    this->arch.disassembly(block, addr);
+  }
+
+
   std::vector<triton::arch::Instruction> API::disassembly(triton::uint64 addr, triton::usize count) const {
     this->checkArchitecture();
     return this->arch.disassembly(addr, count);
   }
 
 
-  std::vector<triton::arch::Instruction> API::disassembly(triton::uint64 addr) const {
+  triton::arch::BasicBlock API::disassembly(triton::uint64 addr) const {
     this->checkArchitecture();
     return this->arch.disassembly(addr);
   }
@@ -609,19 +544,32 @@ namespace triton {
   }
 
 
-  bool API::processing(triton::arch::Instruction& inst) {
+  triton::arch::exception_e API::processing(triton::arch::Instruction& inst) {
     this->checkArchitecture();
     this->arch.disassembly(inst);
     return this->irBuilder->buildSemantics(inst);
   }
 
 
+  triton::arch::exception_e API::processing(triton::arch::BasicBlock& block, triton::uint64 addr) {
+    this->checkArchitecture();
+    this->arch.disassembly(block, addr);
+    return this->irBuilder->buildSemantics(block);
+  }
+
+
 
   /* IR builder API ================================================================================= */
 
-  bool API::buildSemantics(triton::arch::Instruction& inst) {
+  triton::arch::exception_e API::buildSemantics(triton::arch::Instruction& inst) {
     this->checkIrBuilder();
     return this->irBuilder->buildSemantics(inst);
+  }
+
+
+  triton::arch::exception_e API::buildSemantics(triton::arch::BasicBlock& block) {
+    this->checkIrBuilder();
+    return this->irBuilder->buildSemantics(block);
   }
 
 
@@ -881,15 +829,23 @@ namespace triton {
   }
 
 
-  triton::ast::SharedAbstractNode API::simplify(const triton::ast::SharedAbstractNode& node, bool usingSolver) const {
-    this->checkSymbolic();
-
+  triton::ast::SharedAbstractNode API::simplify(const triton::ast::SharedAbstractNode& node, bool usingSolver, bool usingLLVM) const {
     if (usingSolver) {
       return this->simplifyAstViaSolver(node);
     }
+    else if (usingLLVM) {
+      return this->simplifyAstViaLLVM(node);
+    }
     else {
+      this->checkSymbolic();
       return this->symbolic->simplify(node);
     }
+  }
+
+
+  triton::arch::BasicBlock API::simplify(const triton::arch::BasicBlock& block) const {
+    this->checkSymbolic();
+    return this->symbolic->simplify(block);
   }
 
 
@@ -959,9 +915,9 @@ namespace triton {
   }
 
 
-  void API::pushPathConstraint(const triton::ast::SharedAbstractNode& node) {
+  void API::pushPathConstraint(const triton::ast::SharedAbstractNode& node, const std::string& comment) {
     this->checkSymbolic();
-    this->symbolic->pushPathConstraint(node);
+    this->symbolic->pushPathConstraint(node, comment);
   }
 
 
@@ -980,18 +936,6 @@ namespace triton {
   void API::clearPathConstraints(void) {
     this->checkSymbolic();
     this->symbolic->clearPathConstraints();
-  }
-
-
-  void API::enableSymbolicEngine(bool flag) {
-    this->checkSymbolic();
-    this->symbolic->enable(flag);
-  }
-
-
-  bool API::isSymbolicEngineEnabled(void) const {
-    this->checkSymbolic();
-    return this->symbolic->isEnabled();
   }
 
 
@@ -1133,7 +1077,7 @@ namespace triton {
     #endif
     #ifdef TRITON_BITWUZLA_INTERFACE
     if (this->getSolver() == triton::engines::solver::SOLVER_BITWUZLA) {
-        return reinterpret_cast<const triton::engines::solver::BitwuzlaSolver*>(this->getSolverInstance())->evaluate(node);
+      return reinterpret_cast<const triton::engines::solver::BitwuzlaSolver*>(this->getSolverInstance())->evaluate(node);
     }
     #endif
     throw triton::exceptions::API("API::evaluateAstViaZ3(): Solver instance must be a SOLVER_Z3 or SOLVER_BITWUZLA.");
@@ -1181,18 +1125,6 @@ namespace triton {
   std::unordered_set<const triton::arch::Register*> API::getTaintedRegisters(void) const {
     this->checkTaint();
     return this->taint->getTaintedRegisters();
-  }
-
-
-  void API::enableTaintEngine(bool flag) {
-    this->checkTaint();
-    this->taint->enable(flag);
-  }
-
-
-  bool API::isTaintEngineEnabled(void) const {
-    this->checkTaint();
-    return this->taint->isEnabled();
   }
 
 
@@ -1373,29 +1305,50 @@ namespace triton {
 
   /* Lifters engine API ================================================================================= */
 
-  std::ostream& API::liftToLLVM(std::ostream& stream, const triton::ast::SharedAbstractNode& node) {
+  std::ostream& API::liftToLLVM(std::ostream& stream, const triton::ast::SharedAbstractNode& node, const char* fname, bool optimize) {
     this->checkLifting();
     #ifdef TRITON_LLVM_INTERFACE
-    return this->lifting->liftToLLVM(stream, node);
+    return this->lifting->liftToLLVM(stream, node, fname, optimize);
     #endif
     throw triton::exceptions::API("API::liftToLLVM(): Triton not built with LLVM");
   }
 
 
-  std::ostream& API::liftToLLVM(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr) {
-    return this->liftToLLVM(stream, expr->getAst());
+  std::ostream& API::liftToLLVM(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr, const char* fname, bool optimize) {
+    return this->liftToLLVM(stream, expr->getAst(), fname, optimize);
   }
 
 
-  std::ostream& API::liftToPython(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr) {
+  std::ostream& API::liftToPython(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr, bool icomment) {
     this->checkLifting();
-    return this->lifting->liftToPython(stream, expr);
+    return this->lifting->liftToPython(stream, expr, icomment);
   }
 
 
-  std::ostream& API::liftToSMT(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr, bool assert_) {
+  std::ostream& API::liftToSMT(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr, bool assert_, bool icomment) {
     this->checkLifting();
-    return this->lifting->liftToSMT(stream, expr, assert_);
+    return this->lifting->liftToSMT(stream, expr, assert_, icomment);
+  }
+
+
+  std::ostream& API::liftToDot(std::ostream& stream, const triton::ast::SharedAbstractNode& node) {
+    this->checkLifting();
+    return this->lifting->liftToDot(stream, node);
+  }
+
+
+  std::ostream& API::liftToDot(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr) {
+    this->checkLifting();
+    return this->lifting->liftToDot(stream, expr);
+  }
+
+
+  triton::ast::SharedAbstractNode API::simplifyAstViaLLVM(const triton::ast::SharedAbstractNode& node) const {
+    this->checkLifting();
+    #ifdef TRITON_LLVM_INTERFACE
+    return this->lifting->simplifyAstViaLLVM(node);
+    #endif
+    throw triton::exceptions::API("API::simplifyAstViaLLVM(): Triton not built with LLVM");
   }
 
 }; /* triton namespace */

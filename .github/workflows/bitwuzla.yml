@@ -1,4 +1,4 @@
-name: Tests on Linux with Z3 + Bitwuzla
+name: Tests on Linux + Z3 + Bitwuzla
 
 on: [push, pull_request, workflow_dispatch]
 
@@ -63,4 +63,4 @@ jobs:
           sudo make -j3 install
       - name: Unittests
         run: |
-          make -C build check
+          ctest --test-dir build --output-on-failure

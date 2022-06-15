@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <triton/archEnums.hpp>
+#include <triton/basicBlock.hpp>
 #include <triton/callbacks.hpp>
 #include <triton/cpuInterface.hpp>
 #include <triton/dllexport.hpp>
@@ -141,14 +142,14 @@ namespace triton {
         //! Disassembles the instruction according to the architecture.
         TRITON_EXPORT void disassembly(triton::arch::Instruction& inst) const;
 
+        //! Disassembles a block of instructions according to the architecture.
+        TRITON_EXPORT void disassembly(triton::arch::BasicBlock& block, triton::uint64 addr=0) const;
+
         //! Disassembles a concrete memory area and returns a list of at most `count` disassembled instructions.
         TRITON_EXPORT std::vector<triton::arch::Instruction> disassembly(triton::uint64 addr, triton::usize count) const;
 
-        //! Disassembles a concrete memory area from `addr` to control flow instruction and returns a list of disassembled instructions.
-        TRITON_EXPORT std::vector<triton::arch::Instruction> disassembly(triton::uint64 addr) const;
-
-        //! Builds the instruction semantics according to the architecture. Returns true if the instruction is supported.
-        TRITON_EXPORT bool buildSemantics(triton::arch::Instruction& inst);
+        //! Disassembles a concrete memory area from `addr` to control flow instruction and returns a `BasicBlock`.
+        TRITON_EXPORT triton::arch::BasicBlock disassembly(triton::uint64 addr) const;
 
         //! Returns the concrete value of a memory cell.
         TRITON_EXPORT triton::uint8 getConcreteMemoryValue(triton::uint64 addr, bool execCallbacks=true) const;

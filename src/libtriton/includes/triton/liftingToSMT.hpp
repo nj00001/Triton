@@ -50,12 +50,15 @@ namespace triton {
           //! Instance to the symbolic engine.
           triton::engines::symbolic::SymbolicEngine* symbolic;
 
+          //! Define required functions like bswap
+          void requiredFunctions(std::ostream& stream);
+
         public:
           //! Constructor.
           TRITON_EXPORT LiftingToSMT(const triton::ast::SharedAstContext& astCtxt, triton::engines::symbolic::SymbolicEngine* symbolic);
 
-          //! Lifts a symbolic expression and all its references to SMT format. If `assert_` is true, then (assert <expr>).
-          TRITON_EXPORT std::ostream& liftToSMT(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr, bool assert_);
+          //! Lifts a symbolic expression and all its references to SMT format. If `assert_` is true, then (assert <expr>). If `icomment` is true, then print instructions assembly in expression comments.
+          TRITON_EXPORT std::ostream& liftToSMT(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr, bool assert_=false, bool icomment=false);
       };
 
     /*! @} End of lifters namespace */

@@ -10,7 +10,10 @@
 #include <triton/pythonXFunctions.hpp>
 #include <triton/ast.hpp>
 #include <triton/astContext.hpp>
+#include <triton/coreUtils.hpp>
 #include <triton/exceptions.hpp>
+
+#include <iostream>
 
 
 
@@ -91,6 +94,10 @@ Returns the symbolic variable of the node. Only available on `VARIABLE_NODE`, ra
 - <b>\ref py_AST_NODE_page getType(void)</b><br>
 Returns the type of the node.<br>
 e.g: `AST_NODE.BVADD`
+
+- <b>bool isArray(void)</b><br>
+Returns true if it's an array node.
+e.g: `AST_NODE.ARRAY` and `AST_NODE.STORE`.
 
 - <b>bool isLogical(void)</b><br>
 Returns true if it's a logical node.
@@ -228,7 +235,7 @@ namespace triton {
           return PyErr_Format(PyExc_TypeError, "AstNode::getInteger(): Only available on INTEGER_NODE type.");
 
         try {
-          return PyLong_FromUint512(reinterpret_cast<triton::ast::IntegerNode*>(node.get())->getInteger());
+          return PyLong_FromUint512(triton::ast::getInteger<triton::uint512>(node));
         }
         catch (const triton::exceptions::Exception& e) {
           return PyErr_Format(PyExc_TypeError, "%s", e.what());
@@ -310,6 +317,18 @@ namespace triton {
       static PyObject* AstNode_getType(PyObject* self, PyObject* noarg) {
         try {
           return PyLong_FromUint32(PyAstNode_AsAstNode(self)->getType());
+        }
+        catch (const triton::exceptions::Exception& e) {
+          return PyErr_Format(PyExc_TypeError, "%s", e.what());
+        }
+      }
+
+
+      static PyObject* AstNode_isArray(PyObject* self, PyObject* noarg) {
+        try {
+          if (PyAstNode_AsAstNode(self)->isArray())
+            Py_RETURN_TRUE;
+          Py_RETURN_FALSE;
         }
         catch (const triton::exceptions::Exception& e) {
           return PyErr_Format(PyExc_TypeError, "%s", e.what());
@@ -415,9 +434,7 @@ namespace triton {
 
       static PyObject* AstNode_str(PyObject* self) {
         try {
-          std::stringstream str;
-          str << PyAstNode_AsAstNode(self);
-          return PyStr_FromFormat("%s", str.str().c_str());
+          return PyStr_FromFormat("%s", triton::utils::toString(PyAstNode_AsAstNode(self)).c_str());
         }
         catch (const triton::exceptions::Exception& e) {
           return PyErr_Format(PyExc_TypeError, "%s", e.what());
@@ -833,6 +850,7 @@ namespace triton {
         {"getSymbolicExpression",   AstNode_getSymbolicExpression,  METH_NOARGS,     ""},
         {"getSymbolicVariable",     AstNode_getSymbolicVariable,    METH_NOARGS,     ""},
         {"getType",                 AstNode_getType,                METH_NOARGS,     ""},
+        {"isArray",                 AstNode_isArray,                METH_NOARGS,     ""},
         {"isLogical",               AstNode_isLogical,              METH_NOARGS,     ""},
         {"isSigned",                AstNode_isSigned,               METH_NOARGS,     ""},
         {"isSymbolized",            AstNode_isSymbolized,           METH_NOARGS,     ""},

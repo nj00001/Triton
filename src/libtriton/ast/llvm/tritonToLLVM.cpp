@@ -35,6 +35,9 @@ namespace triton {
       // Collect used symbolic variables.
       auto vars = triton::ast::search(node, triton::ast::VARIABLE_NODE);
 
+      //! Sort symbolic variables
+      std::sort(vars.begin(), vars.end());
+
       // Each symbolic variable is a function argument
       std::vector<llvm::Type*> argsType;
       argsType.resize(vars.size());
@@ -78,7 +81,7 @@ namespace triton {
     }
 
 
-    std::shared_ptr<llvm::Module> TritonToLLVM::convert(const triton::ast::SharedAbstractNode& node, const char* fname) {
+    std::shared_ptr<llvm::Module> TritonToLLVM::convert(const triton::ast::SharedAbstractNode& node, const char* fname, bool optimize) {
       std::unordered_map<triton::ast::SharedAbstractNode, llvm::Value*> results;
 
       /* Create the LLVM function */
@@ -94,6 +97,16 @@ namespace triton {
 
       /* Create the return instruction */
       this->llvmIR.CreateRet(results.at(node));
+
+      /* Apply LLVM optimizations (-03 -Oz) if enabled */
+      if (optimize) {
+        llvm::legacy::PassManager pm;
+        llvm::PassManagerBuilder pmb;
+        pmb.OptLevel = 3;
+        pmb.SizeLevel = 2;
+        pmb.populateModulePassManager(pm);
+        pm.run(*this->llvmModule);
+      }
 
       return this->llvmModule;
     }
@@ -116,6 +129,20 @@ namespace triton {
       }
 
       switch (node->getType()) {
+
+        case triton::ast::BSWAP_NODE: {
+          llvm::Function* bswap = nullptr;
+          switch (node->getBitvectorSize()) {
+            case triton::bitsize::byte:  bswap = llvm::Intrinsic::getDeclaration(this->llvmModule.get(), llvm::Intrinsic::bswap, llvm::Type::getInt8Ty(this->llvmContext)); break;
+            case triton::bitsize::word:  bswap = llvm::Intrinsic::getDeclaration(this->llvmModule.get(), llvm::Intrinsic::bswap, llvm::Type::getInt16Ty(this->llvmContext)); break;
+            case triton::bitsize::dword: bswap = llvm::Intrinsic::getDeclaration(this->llvmModule.get(), llvm::Intrinsic::bswap, llvm::Type::getInt32Ty(this->llvmContext)); break;
+            case triton::bitsize::qword: bswap = llvm::Intrinsic::getDeclaration(this->llvmModule.get(), llvm::Intrinsic::bswap, llvm::Type::getInt64Ty(this->llvmContext)); break;
+            default:
+              throw triton::exceptions::AstLifting("TritonToLLVM::do_convert(): Invalid bswap size.");
+          }
+          return this->llvmIR.CreateCall(bswap, children[0]);
+        }
+
         case triton::ast::BVADD_NODE:
           return this->llvmIR.CreateAdd(children[0], children[1]);
 
@@ -148,14 +175,14 @@ namespace triton {
 
         // bvrol(expr, rot) = ((expr << (rot % size)) | (expr >> (size - (rot % size))))
         case triton::ast::BVROL_NODE: {
-          auto rot  = reinterpret_cast<triton::ast::IntegerNode*>(node->getChildren()[1].get())->getInteger().convert_to<uint64_t>();
+          auto rot  = triton::ast::getInteger<triton::uint64>(node->getChildren()[1]);
           auto size = node->getBitvectorSize();
           return this->llvmIR.CreateOr(this->llvmIR.CreateShl(children[0], rot % size), this->llvmIR.CreateLShr(children[0], (size - (rot % size))));
         }
 
         // bvror(expr, rot) = ((expr >> (rot % size)) | (expr << (size - (rot % size))))
         case triton::ast::BVROR_NODE: {
-          auto rot  = reinterpret_cast<triton::ast::IntegerNode*>(node->getChildren()[1].get())->getInteger().convert_to<uint64_t>();
+          auto rot  = triton::ast::getInteger<triton::uint64>(node->getChildren()[1]);
           auto size = node->getBitvectorSize();
           return this->llvmIR.CreateOr(this->llvmIR.CreateLShr(children[0], rot % size), this->llvmIR.CreateShl(children[0], (size - (rot % size))));
         }
@@ -215,7 +242,7 @@ namespace triton {
           return this->llvmIR.CreateXor(children[0], children[1]);
 
         case triton::ast::BV_NODE:
-          return llvm::ConstantInt::get(this->llvmContext, llvm::APInt(node->getBitvectorSize(), node->evaluate().convert_to<uint64>(), false));
+          return llvm::ConstantInt::get(this->llvmContext, llvm::APInt(node->getBitvectorSize(), static_cast<uint64_t>(node->evaluate()), false));
 
         case triton::ast::CONCAT_NODE: {
           auto dstSize   = node->getBitvectorSize();
@@ -237,7 +264,7 @@ namespace triton {
           return this->llvmIR.CreateICmpEQ(children[0], children[1]);
 
         case triton::ast::EXTRACT_NODE: {
-          auto  low     = reinterpret_cast<triton::ast::IntegerNode*>(node->getChildren()[1].get())->getInteger().convert_to<uint64_t>();
+          auto  low     = triton::ast::getInteger<triton::uint64>(node->getChildren()[1]);
           auto  dstSize = node->getChildren()[2]->getBitvectorSize();
           auto* value   = children[2];
 
@@ -281,6 +308,16 @@ namespace triton {
 
         case triton::ast::REFERENCE_NODE:
           return results->at(reinterpret_cast<triton::ast::ReferenceNode*>(node.get())->getSymbolicExpression()->getAst());
+
+        case triton::ast::SELECT_NODE: {
+          auto* ptr = this->llvmIR.CreateIntToPtr(children[1], llvm::Type::getInt8PtrTy(this->llvmContext));
+          return this->llvmIR.CreateLoad(llvm::Type::getInt8Ty(this->llvmContext), ptr);
+        }
+
+        case triton::ast::STORE_NODE: {
+          auto* ptr = this->llvmIR.CreateIntToPtr(children[1], llvm::Type::getInt8PtrTy(this->llvmContext));
+          return this->llvmIR.CreateStore(children[2], ptr);
+        }
 
         case triton::ast::SX_NODE:
           return this->llvmIR.CreateSExt(children[1], llvm::IntegerType::get(this->llvmContext, node->getBitvectorSize()));

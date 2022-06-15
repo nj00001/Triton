@@ -12,6 +12,7 @@
 #include <triton/ast.hpp>
 #include <triton/astContext.hpp>
 #include <triton/astRepresentation.hpp>
+#include <triton/basicBlock.hpp>
 #include <triton/callbacks.hpp>
 #include <triton/dllexport.hpp>
 #include <triton/immediate.hpp>
@@ -241,21 +242,27 @@ namespace triton {
         //! Clears concrete values assigned to the memory cells
         TRITON_EXPORT void clearConcreteMemoryValue(triton::uint64 baseAddr, triton::usize size=1);
 
-        //! [**architecture api**] - Disassembles the instruction and setup operands. You must define an architecture before. \sa processing().
+        //! [**architecture api**] - Disassembles the instruction and setup operands.
         TRITON_EXPORT void disassembly(triton::arch::Instruction& inst) const;
+
+        //! [**architecture api**] - Disassembles a block of instructions. You must define an architecture before.
+        TRITON_EXPORT void disassembly(triton::arch::BasicBlock& block, triton::uint64 addr=0) const;
 
         //! [**architecture api**] - Disassembles a concrete memory area and returns a list of at most `count` disassembled instructions.
         TRITON_EXPORT std::vector<triton::arch::Instruction> disassembly(triton::uint64 addr, triton::usize count) const;
 
-        //! [**architecture api**] - Disassembles a concrete memory area from `addr` to control flow instruction and returns a list of disassembled instructions.
-        TRITON_EXPORT std::vector<triton::arch::Instruction> disassembly(triton::uint64 addr) const;
+        //! [**architecture api**] - Disassembles a concrete memory area from `addr` to control flow instruction and returns a `BasicBlock`.
+        TRITON_EXPORT triton::arch::BasicBlock disassembly(triton::uint64 addr) const;
 
 
 
         /* Processing API ================================================================================ */
 
-        //! [**proccesing api**] - Processes an instruction and updates engines according to the instruction semantics. Returns true if the instruction is supported.
-        TRITON_EXPORT bool processing(triton::arch::Instruction& inst);
+        //! [**proccesing api**] - Processes an instruction and updates engines according to the instruction semantics. Returns `triton::arch::NO_FAULT` if succeed.
+        TRITON_EXPORT triton::arch::exception_e processing(triton::arch::Instruction& inst);
+
+        //! [**proccesing api**] - Processes a block of instructions and updates engines according to instructions semantics. Returns `triton::arch::NO_FAULT` if succeed.
+        TRITON_EXPORT triton::arch::exception_e processing(triton::arch::BasicBlock& block, triton::uint64 addr=0);
 
         //! [**proccesing api**] - Initializes everything.
         TRITON_EXPORT void initEngines(void);
@@ -270,8 +277,11 @@ namespace triton {
 
         /* IR API ======================================================================================== */
 
-        //! [**IR builder api**] - Builds the instruction semantics. Returns true if the instruction is supported. You must define an architecture before. \sa processing().
-        TRITON_EXPORT bool buildSemantics(triton::arch::Instruction& inst);
+        //! [**IR builder api**] - Builds the instruction semantics. Returns `triton::arch::NO_FAULT` if succeed.
+        TRITON_EXPORT triton::arch::exception_e buildSemantics(triton::arch::Instruction& inst);
+
+        //! [**IR builder api**] - Builds the instructions semantics of a block. Returns `triton::arch::NO_FAULT` if succeed.
+        TRITON_EXPORT triton::arch::exception_e buildSemantics(triton::arch::BasicBlock& block);
 
         //! [**IR builder api**] - Returns the AST context. Used as AST builder.
         TRITON_EXPORT triton::ast::SharedAstContext getAstContext(void);
@@ -407,8 +417,11 @@ namespace triton {
         //! [**symbolic api**] - Assigns a symbolic expression to a register.
         TRITON_EXPORT void assignSymbolicExpressionToRegister(const triton::engines::symbolic::SharedSymbolicExpression& se, const triton::arch::Register& reg);
 
-        //! [**symbolic api**] - Processes all recorded AST simplifications or uses solver's simplifications if `usingSolver` is true. Returns the simplified AST.
-        TRITON_EXPORT triton::ast::SharedAbstractNode simplify(const triton::ast::SharedAbstractNode& node, bool usingSolver = false) const;
+        //! [**symbolic api**] - Processes all recorded AST simplifications, uses solver's simplifications if `usingSolver` is true or LLVM is `usingLLVM` is true. Returns the simplified AST.
+        TRITON_EXPORT triton::ast::SharedAbstractNode simplify(const triton::ast::SharedAbstractNode& node, bool usingSolver=false, bool usingLLVM=false) const;
+
+        //! [**symbolic api**] - Processes a dead store elimination simplification on a given basic block.
+        TRITON_EXPORT triton::arch::BasicBlock simplify(const triton::arch::BasicBlock& block) const;
 
         //! [**symbolic api**] - Returns the shared symbolic expression corresponding to an id.
         TRITON_EXPORT triton::engines::symbolic::SharedSymbolicExpression getSymbolicExpression(triton::usize symExprId) const;
@@ -438,7 +451,7 @@ namespace triton {
         TRITON_EXPORT triton::usize getSizeOfPathConstraints(void) const;
 
         //! [**symbolic api**] - Pushes constraint created from node to the current path predicate.
-        TRITON_EXPORT void pushPathConstraint(const triton::ast::SharedAbstractNode& node);
+        TRITON_EXPORT void pushPathConstraint(const triton::ast::SharedAbstractNode& node, const std::string& comment="");
 
         //! [**symbolic api**] - Pushes constraint to the current path predicate.
         TRITON_EXPORT void pushPathConstraint(const triton::engines::symbolic::PathConstraint& pco);
@@ -448,12 +461,6 @@ namespace triton {
 
         //! [**symbolic api**] - Clears the current path predicate.
         TRITON_EXPORT void clearPathConstraints(void);
-
-        //! [**symbolic api**] - Enables or disables the symbolic execution engine.
-        TRITON_EXPORT void enableSymbolicEngine(bool flag);
-
-        //! [**symbolic api**] - Returns true if the symbolic execution engine is enabled.
-        TRITON_EXPORT bool isSymbolicEngineEnabled(void) const;
 
         //! [**symbolic api**] - Returns true if the symbolic expression ID exists.
         TRITON_EXPORT bool isSymbolicExpressionExists(triton::usize symExprId) const;
@@ -574,12 +581,6 @@ namespace triton {
         //! [**taint api**] - Returns the tainted registers.
         TRITON_EXPORT std::unordered_set<const triton::arch::Register*> getTaintedRegisters(void) const;
 
-        //! [**taint api**] - Enables or disables the taint engine.
-        TRITON_EXPORT void enableTaintEngine(bool flag);
-
-        //! [**taint api**] - Returns true if the taint engine is enabled.
-        TRITON_EXPORT bool isTaintEngineEnabled(void) const;
-
         //! [**taint api**] - Abstract taint verification. Returns true if the operand is tainted.
         TRITON_EXPORT bool isTainted(const triton::arch::OperandWrapper& op) const;
 
@@ -672,17 +673,26 @@ namespace triton {
 
         /* Lifters engine API ================================================================================= */
 
-        //! [**lifting api**] - Lifts an AST and all its references to LLVM format.
-        TRITON_EXPORT std::ostream& liftToLLVM(std::ostream& stream, const triton::ast::SharedAbstractNode& node);
+        //! [**lifting api**] - Lifts an AST and all its references to LLVM format. `fname` represents the name of the LLVM function.
+        TRITON_EXPORT std::ostream& liftToLLVM(std::ostream& stream, const triton::ast::SharedAbstractNode& node, const char* fname="__triton", bool optimize=false);
 
-        //! [**lifting api**] - Lifts a symbolic expression and all its references to LLVM format.
-        TRITON_EXPORT std::ostream& liftToLLVM(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr);
+        //! [**lifting api**] - Lifts a symbolic expression and all its references to LLVM format. `fname` represents the name of the LLVM function.
+        TRITON_EXPORT std::ostream& liftToLLVM(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr, const char* fname="__triton", bool optimize=false);
 
-        //! [**lifting api**] - Lifts a symbolic expression and all its references to Python format.
-        TRITON_EXPORT std::ostream& liftToPython(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr);
+        //! [**lifting api**] - Lifts a symbolic expression and all its references to Python format. If `icomment` is true, then print instructions assembly in expression comments.
+        TRITON_EXPORT std::ostream& liftToPython(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr, bool icomment=false);
 
-        //! [**lifting api**] - Lifts a symbolic expression and all its references to SMT format. If `assert_` is true, then (assert <expr>).
-        TRITON_EXPORT std::ostream& liftToSMT(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr, bool assert_);
+        //! [**lifting api**] - Lifts a symbolic expression and all its references to SMT format. If `assert_` is true, then (assert <expr>). If `icomment` is true, then print instructions assembly in expression comments.
+        TRITON_EXPORT std::ostream& liftToSMT(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr, bool assert_=false, bool icomment=false);
+
+        //! [**lifting api**] - Lifts an AST and all its references to Dot format.
+        TRITON_EXPORT std::ostream& liftToDot(std::ostream& stream, const triton::ast::SharedAbstractNode& node);
+
+        //! [**lifting api**] - Lifts a symbolic expression and all its references to Dot format.
+        TRITON_EXPORT std::ostream& liftToDot(std::ostream& stream, const triton::engines::symbolic::SharedSymbolicExpression& expr);
+
+        //! [**lifting api**] - Lifts and simplify an AST using LLVM
+        TRITON_EXPORT triton::ast::SharedAbstractNode simplifyAstViaLLVM(const triton::ast::SharedAbstractNode& node) const;
     };
 
 /*! @} End of triton namespace */

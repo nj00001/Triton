@@ -25,6 +25,7 @@ set(LIBTRITON_SOURCE_FILES
     arch/arm/arm32/arm32Semantics.cpp
     arch/arm/arm32/arm32Specifications.cpp
     arch/arm/armOperandProperties.cpp
+    arch/basicBlock.cpp
     arch/bitsVector.cpp
     arch/immediate.cpp
     arch/instruction.cpp
@@ -42,6 +43,7 @@ set(LIBTRITON_SOURCE_FILES
     ast/representations/astRepresentation.cpp
     ast/representations/astSmtRepresentation.cpp
     callbacks/callbacks.cpp
+    engines/lifters/liftingToDot.cpp
     engines/lifters/liftingToPython.cpp
     engines/lifters/liftingToSMT.cpp
     engines/solver/solverEngine.cpp
@@ -81,6 +83,7 @@ set(LIBTRITON_HEADER_FILES
     includes/triton/astRepresentation.hpp
     includes/triton/astRepresentationInterface.hpp
     includes/triton/astSmtRepresentation.hpp
+    includes/triton/basicBlock.hpp
     includes/triton/bitsVector.hpp
     includes/triton/bitwuzlaSolver.hpp
     includes/triton/callbacks.hpp
@@ -96,6 +99,7 @@ set(LIBTRITON_HEADER_FILES
     includes/triton/instruction.hpp
     includes/triton/irBuilder.hpp
     includes/triton/liftingEngine.hpp
+    includes/triton/liftingToDot.hpp
     includes/triton/liftingToLLVM.hpp
     includes/triton/liftingToPython.hpp
     includes/triton/liftingToSMT.hpp
@@ -126,6 +130,7 @@ set(LIBTRITON_HEADER_FILES
     includes/triton/tritonToLLVM.hpp
     includes/triton/tritonToZ3.hpp
     includes/triton/tritonTypes.hpp
+    includes/triton/uintwide_t.h
     includes/triton/x86.spec
     includes/triton/x8664Cpu.hpp
     includes/triton/x86Cpu.hpp
@@ -180,6 +185,7 @@ if(PYTHON_BINDINGS)
         bindings/python/namespaces/initCallbackNamespace.cpp
         bindings/python/namespaces/initConditionsNamespace.cpp
         bindings/python/namespaces/initCpuSizeNamespace.cpp
+        bindings/python/namespaces/initExceptionNamespace.cpp
         bindings/python/namespaces/initExtendNamespace.cpp
         bindings/python/namespaces/initModeNamespace.cpp
         bindings/python/namespaces/initOpcodesNamespace.cpp
@@ -194,6 +200,7 @@ if(PYTHON_BINDINGS)
         bindings/python/objects/pyAstContext.cpp
         bindings/python/objects/pyAstNode.cpp
         bindings/python/objects/pyBitsVector.cpp
+        bindings/python/objects/pyBasicBlock.cpp
         bindings/python/objects/pyImmediate.cpp
         bindings/python/objects/pyInstruction.cpp
         bindings/python/objects/pyMemoryAccess.cpp
@@ -262,7 +269,6 @@ target_link_libraries(triton PUBLIC
     ${LLVM_LIBRARIES}
     ${BITWUZLA_LIBRARIES}
     ${CAPSTONE_LIBRARIES}
-    ${LIBTRITON_OTHER_LIBS}
 )
 
 # Workaround to allow building 'namespace linux' (defined by -std=gnu++11)
@@ -276,7 +282,7 @@ if(MSVC AND MSVC_STATIC)
 endif()
 
 if(WIN32 AND BUILD_SHARED_LIBS)
-    target_compile_definitions(triton PUBLIC TRITON_BUILDING_DLL)
+    target_compile_definitions(triton PRIVATE BUILDING_DLL)
 endif()
 
 # Install tritonTargets.cmake
@@ -292,6 +298,9 @@ install(
     EXPORT tritonTargets
     PUBLIC_HEADER DESTINATION include/triton
     INCLUDES DESTINATION include
+    RUNTIME DESTINATION bin
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
 )
 
 # Configure tritonConfig.cmake and tritonConfigVersion.cmake
@@ -319,13 +328,14 @@ install(
 # Install Python bindings
 if(PYTHON_BINDINGS)
     add_custom_target(python-triton ALL
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${CMAKE_SHARED_MODULE_PREFIX}triton${CMAKE_SHARED_LIBRARY_SUFFIX}" "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/triton${PYTHON_SUFFIX}"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE_DIR:triton>/${CMAKE_SHARED_MODULE_PREFIX}triton${CMAKE_SHARED_LIBRARY_SUFFIX}" "$<TARGET_FILE_DIR:triton>/triton${PYTHON_SUFFIX}"
         DEPENDS triton
     )
-    execute_process (COMMAND ${PYTHON_EXECUTABLE} -c "from sysconfig import get_path; print(get_path('platlib'))" OUTPUT_VARIABLE PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND NOT ${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
-        install (FILES ${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/triton${PYTHON_SUFFIX} DESTINATION ${PYTHON_SITE_PACKAGES})
+    if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+        execute_process (COMMAND ${PYTHON_EXECUTABLE} -c "from sysconfig import get_path; print(get_path('platlib'))" OUTPUT_VARIABLE PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
+        install (FILES $<TARGET_FILE_DIR:triton>/triton${PYTHON_SUFFIX} DESTINATION ${PYTHON_SITE_PACKAGES})
     else()
-        install (FILES ${CMAKE_CURRENT_BINARY_DIR}/triton${PYTHON_SUFFIX} DESTINATION ${PYTHON_SITE_PACKAGES})
+        execute_process (COMMAND ${PYTHON_EXECUTABLE} -c "from sys import version_info; print(f'lib/python{version_info[0]}.{version_info[1]}/site-packages')" OUTPUT_VARIABLE PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
+        install (FILES $<TARGET_FILE_DIR:triton>/triton${PYTHON_SUFFIX} DESTINATION ${CMAKE_INSTALL_PREFIX}/${PYTHON_SITE_PACKAGES})
     endif()
 endif()

@@ -1,9 +1,11 @@
 enable_testing()
 
-if (NOT BUILD_SHARED_LIBS)
+if(NOT BUILD_SHARED_LIBS)
     find_package(Threads REQUIRED)
     set(CMAKE_CXX_FLAGS -pthread)
-    set(CMAKE_EXE_LINKER_FLAGS "-static")
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        set(CMAKE_EXE_LINKER_FLAGS "-static")
+    endif()
 endif()
 
 add_executable(taint_reg taint_reg.cpp)
@@ -41,3 +43,9 @@ set_property(TARGET ctest_api PROPERTY CXX_STANDARD 14)
 target_link_libraries(ctest_api triton)
 add_test(TestAPI ctest_api)
 add_dependencies(check ctest_api)
+
+add_executable(block block.cpp)
+set_property(TARGET block PROPERTY CXX_STANDARD 14)
+target_link_libraries(block triton)
+add_test(TestBlock block)
+add_dependencies(check block)

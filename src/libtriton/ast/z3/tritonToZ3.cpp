@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include <triton/coreUtils.hpp>
 #include <triton/cpuSize.hpp>
 #include <triton/exceptions.hpp>
 #include <triton/symbolicExpression.hpp>
@@ -28,19 +29,6 @@ namespace triton {
       /* See #828: Release ownership before calling container destructor */
       this->symbols.clear();
       this->variables.clear();
-    }
-
-
-    triton::__uint TritonToZ3::getUintValue(const z3::expr& expr) {
-      if (!expr.is_int())
-        throw triton::exceptions::AstLifting("TritonToZ3::getUintValue(): The ast is not a numerical value.");
-
-      #if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__)
-      return expr.get_numeral_uint64();
-      #endif
-      #if defined(__i386) || defined(_M_IX86)
-      return expr.get_numeral_uint();
-      #endif
     }
 
 
@@ -73,6 +61,29 @@ namespace triton {
       }
 
       switch (node->getType()) {
+
+        case ARRAY_NODE: {
+          auto size  = triton::ast::getInteger<triton::uint32>(node->getChildren()[0]);
+          auto isort = this->context.bv_sort(size);
+          auto value = this->context.bv_val(0, 8);
+          return to_expr(this->context, Z3_mk_const_array(this->context, isort, value));
+        }
+
+        case BSWAP_NODE: {
+          auto bvsize = node->getBitvectorSize();
+          auto retval = to_expr(this->context, Z3_mk_bvand(this->context, children[0], this->context.bv_val(0xff, bvsize)));
+          for (triton::uint32 index = 8 ; index != bvsize ; index += triton::bitsize::byte) {
+            retval = to_expr(this->context, Z3_mk_bvshl(this->context, retval, this->context.bv_val(8, bvsize)));
+            retval = to_expr(this->context, Z3_mk_bvor(this->context, retval,
+                       to_expr(this->context, Z3_mk_bvand(this->context,
+                         to_expr(this->context, Z3_mk_bvlshr(this->context, children[0], this->context.bv_val(index, bvsize))),
+                                                this->context.bv_val(0xff, bvsize)
+                                              ))
+                                            ));
+          }
+          return to_expr(this->context, retval);
+        }
+
         case BVADD_NODE:
           return to_expr(this->context, Z3_mk_bvadd(this->context, children[0], children[1]));
 
@@ -104,12 +115,12 @@ namespace triton {
           return to_expr(this->context, Z3_mk_bvor(this->context, children[0], children[1]));
 
         case BVROL_NODE: {
-          triton::uint32 rot = reinterpret_cast<triton::ast::IntegerNode*>(node->getChildren()[1].get())->getInteger().convert_to<triton::uint32>();
+          triton::uint32 rot = triton::ast::getInteger<triton::uint32>(node->getChildren()[1]);
           return to_expr(this->context, Z3_mk_rotate_left(this->context, rot, children[0]));
         }
 
         case BVROR_NODE: {
-          triton::uint32 rot = reinterpret_cast<triton::ast::IntegerNode*>(node->getChildren()[1].get())->getInteger().convert_to<triton::uint32>();
+          triton::uint32 rot = triton::ast::getInteger<triton::uint32>(node->getChildren()[1]);
           return to_expr(this->context, Z3_mk_rotate_right(this->context, rot, children[0]));
         }
 
@@ -164,12 +175,8 @@ namespace triton {
         case BVXOR_NODE:
           return to_expr(this->context, Z3_mk_bvxor(this->context, children[0], children[1]));
 
-        case BV_NODE: {
-          z3::expr value        = children[0];
-          z3::expr size         = children[1];
-          triton::uint32 bvsize = static_cast<triton::uint32>(this->getUintValue(size));
-          return this->context.bv_val(this->getStringValue(value).c_str(), bvsize);
-        }
+        case BV_NODE:
+          return this->context.bv_val(this->getStringValue(children[0]).c_str(), children[1].get_numeral_uint());
 
         case CONCAT_NODE: {
           z3::expr currentValue = children[0];
@@ -180,6 +187,7 @@ namespace triton {
             nextValue = children[idx];
             currentValue = to_expr(this->context, Z3_mk_concat(this->context, currentValue, nextValue));
           }
+
           return currentValue;
         }
 
@@ -194,15 +202,8 @@ namespace triton {
         case EQUAL_NODE:
           return to_expr(this->context, Z3_mk_eq(this->context, children[0], children[1]));
 
-        case EXTRACT_NODE: {
-          z3::expr high     = children[0];
-          z3::expr low      = children[1];
-          z3::expr value    = children[2];
-          triton::uint32 hv = static_cast<triton::uint32>(this->getUintValue(high));
-          triton::uint32 lv = static_cast<triton::uint32>(this->getUintValue(low));
-
-          return to_expr(this->context, Z3_mk_extract(this->context, hv, lv, value));
-        }
+        case EXTRACT_NODE:
+          return to_expr(this->context, Z3_mk_extract(this->context, children[0].get_numeral_uint(), children[1].get_numeral_uint(), children[2]));
 
         case FORALL_NODE: {
           triton::uint32 size = static_cast<triton::uint32>(node->getChildren().size() - 1);
@@ -226,7 +227,7 @@ namespace triton {
         }
 
         case INTEGER_NODE: {
-          std::string value(reinterpret_cast<triton::ast::IntegerNode*>(node.get())->getInteger().convert_to<std::string>());
+          std::string value(triton::ast::getInteger<std::string>(node));
           return this->context.int_val(value.c_str());
         }
 
@@ -240,16 +241,10 @@ namespace triton {
 
         case LAND_NODE: {
           z3::expr currentValue = children[0];
-          if (!currentValue.get_sort().is_bool()) {
-            throw triton::exceptions::AstLifting("TritonToZ3::LandNode(): Land can be apply only on bool value.");
-          }
           z3::expr nextValue(this->context);
 
           for (triton::uint32 idx = 1; idx < children.size(); idx++) {
             nextValue = children[idx];
-            if (!nextValue.get_sort().is_bool()) {
-              throw triton::exceptions::AstLifting("TritonToZ3::LandNode(): Land can be apply only on bool value.");
-            }
             Z3_ast ops[] = {currentValue, nextValue};
             currentValue = to_expr(this->context, Z3_mk_and(this->context, 2, ops));
           }
@@ -266,24 +261,15 @@ namespace triton {
 
         case LNOT_NODE: {
           z3::expr value = children[0];
-          if (!value.get_sort().is_bool()) {
-            throw triton::exceptions::AstLifting("TritonToZ3::LnotNode(): Lnot can be apply only on bool value.");
-          }
           return to_expr(this->context, Z3_mk_not(this->context, value));
         }
 
         case LOR_NODE: {
           z3::expr currentValue = children[0];
-          if (!currentValue.get_sort().is_bool()) {
-            throw triton::exceptions::AstLifting("TritonToZ3::LnotNode(): Lnot can be apply only on bool value.");
-          }
           z3::expr nextValue(this->context);
 
           for (triton::uint32 idx = 1; idx < children.size(); idx++) {
             nextValue = children[idx];
-            if (!nextValue.get_sort().is_bool()) {
-              throw triton::exceptions::AstLifting("TritonToZ3::LnotNode(): Lnot can be apply only on bool value.");
-            }
             Z3_ast ops[] = {currentValue, nextValue};
             currentValue = to_expr(this->context, Z3_mk_or(this->context, 2, ops));
           }
@@ -293,16 +279,10 @@ namespace triton {
 
         case LXOR_NODE: {
           z3::expr currentValue = children[0];
-          if (!currentValue.get_sort().is_bool()) {
-            throw triton::exceptions::AstLifting("TritonToZ3::LxorNode(): Lxor can be applied only on bool value.");
-          }
           z3::expr nextValue(this->context);
 
           for (triton::uint32 idx = 1; idx < children.size(); idx++) {
             nextValue = children[idx];
-            if (!nextValue.get_sort().is_bool()) {
-              throw triton::exceptions::AstLifting("TritonToZ3::LxorNode(): Lxor can be applied only on bool value.");
-            }
             currentValue = to_expr(this->context, Z3_mk_xor(this->context, currentValue, nextValue));
           }
 
@@ -321,13 +301,14 @@ namespace triton {
           return results->at(this->symbols[value]);
         }
 
-        case SX_NODE: {
-          z3::expr ext        = children[0];
-          z3::expr value      = children[1];
-          triton::uint32 extv = static_cast<triton::uint32>(this->getUintValue(ext));
+        case SELECT_NODE:
+          return to_expr(this->context, Z3_mk_select(this->context, children[0], children[1]));
 
-          return to_expr(this->context, Z3_mk_sign_ext(this->context, extv, value));
-        }
+        case STORE_NODE:
+          return to_expr(this->context, Z3_mk_store(this->context, children[0], children[1], children[2]));
+
+        case SX_NODE:
+          return to_expr(this->context, Z3_mk_sign_ext(this->context, children[0].get_numeral_uint(), children[1]));
 
         case VARIABLE_NODE: {
           const triton::engines::symbolic::SharedSymbolicVariable& symVar = reinterpret_cast<triton::ast::VariableNode*>(node.get())->getSymbolicVariable();
@@ -338,21 +319,15 @@ namespace triton {
           /* If the conversion is used to evaluate a node, we concretize symbolic variables */
           if (this->isEval) {
             triton::uint512 value = reinterpret_cast<triton::ast::VariableNode*>(node.get())->evaluate();
-            std::string strValue(value.convert_to<std::string>());
-            return this->context.bv_val(strValue.c_str(), symVar->getSize());
+            return this->context.bv_val(triton::utils::toString(value).c_str(), symVar->getSize());
           }
 
           /* Otherwise, we keep the symbolic variables for a real conversion */
           return this->context.bv_const(symVar->getName().c_str(), symVar->getSize());
         }
 
-        case ZX_NODE: {
-          z3::expr ext        = children[0];
-          z3::expr value      = children[1];
-          triton::uint32 extv = static_cast<triton::uint32>(this->getUintValue(ext));
-
-          return to_expr(this->context, Z3_mk_zero_ext(this->context, extv, value));
-        }
+        case ZX_NODE:
+          return to_expr(this->context, Z3_mk_zero_ext(this->context, children[0].get_numeral_uint(), children[1]));
 
         default:
           throw triton::exceptions::AstLifting("TritonToZ3::do_convert(): Invalid kind of node.");

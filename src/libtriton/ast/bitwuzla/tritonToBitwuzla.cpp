@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include <triton/coreUtils.hpp>
 #include <triton/cpuSize.hpp>
 #include <triton/exceptions.hpp>
 #include <triton/symbolicExpression.hpp>
@@ -42,10 +43,12 @@ namespace triton {
 
     const BitwuzlaTerm* TritonToBitwuzla::convert(const SharedAbstractNode& node, Bitwuzla* bzla) {
       auto nodes = childrenExtraction(node, true /* unroll*/, true /* revert */);
+
       for (auto&& n : nodes) {
-        translatedNodes[n] = translate(n, bzla);
+        this->translatedNodes[n] = translate(n, bzla);
       }
-      return translatedNodes.at(node);
+
+      return this->translatedNodes.at(node);
     }
 
 
@@ -55,10 +58,36 @@ namespace triton {
 
       std::vector<const BitwuzlaTerm*> children;
       for (auto&& n : node->getChildren()) {
-        children.emplace_back(translatedNodes.at(n));
+        children.emplace_back(this->translatedNodes.at(n));
       }
 
       switch (node->getType()) {
+
+        case ARRAY_NODE: {
+          auto size  = triton::ast::getInteger<triton::uint32>(node->getChildren()[0]);
+          auto isort = bitwuzla_mk_bv_sort(bzla, size);               // index sort
+          auto vsort = bitwuzla_mk_bv_sort(bzla, 8);                  // value sort
+          auto asort = bitwuzla_mk_array_sort(bzla, isort, vsort);    // array sort
+          auto value = bitwuzla_mk_bv_value_uint64(bzla, vsort, 0);   // const value
+          return bitwuzla_mk_const_array(bzla, asort, value);
+        }
+
+        case BSWAP_NODE: {
+          auto bvsize = node->getBitvectorSize();
+          auto* bvsort = bitwuzla_mk_bv_sort(bzla, bvsize);
+          auto* retval = bitwuzla_mk_term2(bzla, BITWUZLA_KIND_BV_AND, children[0], bitwuzla_mk_bv_value_uint64(bzla, bvsort, 0xff));
+          for (triton::uint32 index = 8 ; index != bvsize ; index += triton::bitsize::byte) {
+            retval = bitwuzla_mk_term2(bzla, BITWUZLA_KIND_BV_SHL, retval, bitwuzla_mk_bv_value_uint64(bzla, bvsort, 8));
+            retval = bitwuzla_mk_term2(bzla, BITWUZLA_KIND_BV_OR, retval,
+                      bitwuzla_mk_term2(bzla, BITWUZLA_KIND_BV_AND,
+                        bitwuzla_mk_term2(bzla, BITWUZLA_KIND_BV_SHR, children[0], bitwuzla_mk_bv_value_uint64(bzla, bvsort, index)),
+                        bitwuzla_mk_bv_value_uint64(bzla, bvsort, 0xff)
+                      )
+                     );
+          }
+          return retval;
+        }
+
         case BVADD_NODE:
           return bitwuzla_mk_term2(bzla, BITWUZLA_KIND_BV_ADD, children[0], children[1]);
 
@@ -91,13 +120,13 @@ namespace triton {
 
         case BVROL_NODE: {
           auto childNodes = node->getChildren();
-          auto idx = reinterpret_cast<IntegerNode*>(childNodes[1].get())->getInteger().convert_to<size_t>();
+          auto idx = triton::ast::getInteger<triton::usize>(childNodes[1]);
           return bitwuzla_mk_term1_indexed1(bzla, BITWUZLA_KIND_BV_ROLI, children[0], idx);
         }
 
         case BVROR_NODE: {
           auto childNodes = node->getChildren();
-          auto idx = reinterpret_cast<IntegerNode*>(childNodes[1].get())->getInteger().convert_to<size_t>();
+          auto idx = triton::ast::getInteger<triton::usize>(childNodes[1]);
           return bitwuzla_mk_term1_indexed1(bzla, BITWUZLA_KIND_BV_RORI, children[0], idx);
         }
 
@@ -154,18 +183,19 @@ namespace triton {
 
         case BV_NODE: {
           auto childNodes = node->getChildren();
-          auto bv_size = reinterpret_cast<IntegerNode*>(childNodes[1].get())->getInteger().convert_to<size_t>();
-          auto sort = bvSorts.find(bv_size);
-          if (sort == bvSorts.end()) {
-            sort = bvSorts.insert({bv_size, bitwuzla_mk_bv_sort(bzla, bv_size)}).first;
+          auto bv_size = triton::ast::getInteger<triton::usize>(childNodes[1]);
+          auto sort = this->bvSorts.find(bv_size);
+          if (sort == this->bvSorts.end()) {
+            sort = this->bvSorts.insert({bv_size, bitwuzla_mk_bv_sort(bzla, bv_size)}).first;
           }
 
           // Handle bitvector value as integer if it small enough.
           if (bv_size <= sizeof(uint64_t) * 8) {
-            auto bv_value = reinterpret_cast<IntegerNode*>(childNodes[0].get())->getInteger().convert_to<uint64_t>();
+            auto bv_value = triton::ast::getInteger<triton::uint64>(childNodes[0]);
             return bitwuzla_mk_bv_value_uint64(bzla, sort->second, bv_value);
           }
-          auto bv_value = reinterpret_cast<IntegerNode*>(childNodes[0].get())->getInteger().convert_to<std::string>();
+
+          auto bv_value = triton::ast::getInteger<std::string>(childNodes[0]);
           return bitwuzla_mk_bv_value(bzla, sort->second, bv_value.c_str(), BITWUZLA_BV_BASE_DEC);
         }
 
@@ -180,8 +210,8 @@ namespace triton {
 
         case EXTRACT_NODE: {
           auto childNodes = node->getChildren();
-          auto high = reinterpret_cast<IntegerNode*>(childNodes[0].get())->getInteger().convert_to<size_t>();
-          auto low = reinterpret_cast<IntegerNode*>(childNodes[1].get())->getInteger().convert_to<size_t>();
+          auto high = triton::ast::getInteger<triton::usize>(childNodes[0]);
+          auto low  = triton::ast::getInteger<triton::usize>(childNodes[1]);
           return bitwuzla_mk_term1_indexed2(bzla, BITWUZLA_KIND_BV_EXTRACT, children[2], high, low);
         }
 
@@ -217,8 +247,14 @@ namespace triton {
 
         case REFERENCE_NODE: {
           auto ref = reinterpret_cast<ReferenceNode*>(node.get())->getSymbolicExpression()->getAst();
-          return translatedNodes.at(ref);
+          return this->translatedNodes.at(ref);
         }
+
+        case SELECT_NODE:
+          return bitwuzla_mk_term2(bzla, BITWUZLA_KIND_ARRAY_SELECT, children[0], children[1]);
+
+        case STORE_NODE:
+          return bitwuzla_mk_term3(bzla, BITWUZLA_KIND_ARRAY_STORE, children[0], children[1], children[2]);
 
         case STRING_NODE: {
           std::string value = reinterpret_cast<triton::ast::StringNode*>(node.get())->getString();
@@ -227,30 +263,30 @@ namespace triton {
           if (it == symbols.end())
             throw triton::exceptions::AstLifting("TritonToBitwuzla::translate(): [STRING_NODE] Symbols not found.");
 
-          return translatedNodes.at(it->second);
+          return this->translatedNodes.at(it->second);
         }
 
         case SX_NODE: {
           auto childNodes = node->getChildren();
-          auto ext = reinterpret_cast<IntegerNode*>(childNodes[0].get())->getInteger().convert_to<size_t>();
+          auto ext = triton::ast::getInteger<triton::usize>(childNodes[0]);
           return bitwuzla_mk_term1_indexed1(bzla, BITWUZLA_KIND_BV_SIGN_EXTEND, children[1], ext);
         }
 
         case VARIABLE_NODE: {
           const auto& symVar = reinterpret_cast<VariableNode*>(node.get())->getSymbolicVariable();
           auto size = symVar->getSize();
-          auto sort = bvSorts.find(size);
-          if (sort == bvSorts.end()) {
-            sort = bvSorts.insert({size, bitwuzla_mk_bv_sort(bzla, size)}).first;
+          auto sort = this->bvSorts.find(size);
+          if (sort == this->bvSorts.end()) {
+            sort = this->bvSorts.insert({size, bitwuzla_mk_bv_sort(bzla, size)}).first;
           }
 
           // If the conversion is used to evaluate a node, we concretize symbolic variables.
           if (this->isEval) {
             triton::uint512 value = reinterpret_cast<triton::ast::VariableNode*>(node.get())->evaluate();
             if (size <= sizeof(uint64_t) * 8) {
-              return bitwuzla_mk_bv_value_uint64(bzla, sort->second, value.convert_to<uint64_t>());
+              return bitwuzla_mk_bv_value_uint64(bzla, sort->second, static_cast<uint64_t>(value));
             }
-            return bitwuzla_mk_bv_value(bzla, sort->second, value.convert_to<std::string>().c_str(), BITWUZLA_BV_BASE_DEC);
+            return bitwuzla_mk_bv_value(bzla, sort->second, triton::utils::toString(value).c_str(), BITWUZLA_BV_BASE_DEC);
           }
 
           auto n = bitwuzla_mk_const(bzla, sort->second, symVar->getName().c_str());
@@ -260,7 +296,7 @@ namespace triton {
 
         case ZX_NODE: {
           auto childNodes = node->getChildren();
-          auto ext = reinterpret_cast<IntegerNode*>(childNodes[0].get())->getInteger().convert_to<size_t>();
+          auto ext = triton::ast::getInteger<triton::usize>(childNodes[0]);
           return bitwuzla_mk_term1_indexed1(bzla, BITWUZLA_KIND_BV_ZERO_EXTEND,children[1], ext);
         }
 

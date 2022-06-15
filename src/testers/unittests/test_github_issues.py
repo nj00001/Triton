@@ -41,11 +41,12 @@ class TestIssue656(unittest.TestCase):
 
     def test_issue(self):
         e = self.sym_exec_gadget((b'\x89\xd8', b'\xc2\x04\x00'))
-        self.assertEqual(str(e), '(define-fun ref!15 () (_ BitVec 64) ((_ zero_extend 32) ((_ extract 31 0) ref!1))) ; MOV operation - 0x0: mov eax, ebx')
+        self.assertEqual(str(e), '(define-fun ref!15 () (_ BitVec 64) ((_ zero_extend 32) ((_ extract 31 0) ref!1))) ; MOV operation')
         a = e.getAst()
         self.assertEqual(str(a + 1), '(bvadd ((_ zero_extend 32) ((_ extract 31 0) ref!1)) (_ bv1 64))')
         self.assertEqual(str(1 + a), '(bvadd (_ bv1 64) ((_ zero_extend 32) ((_ extract 31 0) ref!1)))')
-        self.assertEqual(str(e.getComment()), 'MOV operation - 0x0: mov eax, ebx')
+        self.assertEqual(str(e.getComment()), 'MOV operation')
+        self.assertEqual(str(e.getDisassembly()), '0x0: mov eax, ebx')
         self.assertEqual(e.getId(), 15)
         self.assertEqual(str(e.getAst()), str(e.getNewAst()))
         self.assertEqual(str(e.getOrigin()), 'rax:64 bv[63..0]')
@@ -507,3 +508,36 @@ class TestIssue1029(unittest.TestCase):
 
     def test_issue(self):
         self.ctx.processing(Instruction(b"\x00#")) # movs r3, #0
+
+
+class TestIssue1131(unittest.TestCase):
+    """Testing #1131."""
+
+    def setUp(self):
+        self.ctx = TritonContext(ARCH.X86_64)
+        self.ctx.setConcreteRegisterValue(self.ctx.registers.rdi, 0xdeadbeefcafebabe)
+
+    def test_issue(self):
+        self.ctx.processing(Instruction(b"\x66\x0f\xcf")) # bswap di
+        self.assertEqual(self.ctx.getConcreteRegisterValue(self.ctx.registers.rdi), 0xdeadbeefcafe0000)
+
+
+class TestIssue872(unittest.TestCase):
+    """Testing #872."""
+
+    def setUp(self):
+        self.ctx = TritonContext(ARCH.X86_64)
+        self.code = [
+          (b"\xB8\x05\x00\x00\x00", EXCEPTION.NO_FAULT),  # mov eax, 5
+          (b"\xBA\x00\x00\x00\x00", EXCEPTION.NO_FAULT),  # mov edx, 0
+          (b"\xF7\xF2",             EXCEPTION.FAULT_DE)   # div edx
+        ]
+
+    def test_1(self):
+        for op in self.code:
+            ret = self.ctx.processing(Instruction(op[0]))
+            self.assertEqual(ret, op[1])
+
+    def test_2(self):
+        ret = self.ctx.processing(Instruction(b"\xCC")) # int3
+        self.assertEqual(ret, EXCEPTION.FAULT_BP)

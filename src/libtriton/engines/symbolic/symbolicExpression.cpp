@@ -122,20 +122,20 @@ namespace triton {
 
         else if (ast->getContext()->getRepresentationMode() == triton::ast::representations::SMT_REPRESENTATION) {
           stream << "(define-fun " << this->getFormattedId() << " () (_ BitVec " << std::dec << this->getAst()->getBitvectorSize() << ") " << this->getAst() << ")";
-          if (!this->getComment().empty())
-            stream << " " << this->getFormattedComment();
-          return stream.str();
         }
 
         else if (ast->getContext()->getRepresentationMode() == triton::ast::representations::PYTHON_REPRESENTATION) {
           stream << this->getFormattedId() << " = " << this->getAst();
-          if (!this->getComment().empty())
-            stream << " " << this->getFormattedComment();
-          return stream.str();
         }
 
         else
           throw triton::exceptions::SymbolicExpression("SymbolicExpression::getFormattedExpression(): Invalid AST representation mode.");
+
+        if (!this->getComment().empty()) {
+          stream << " " << this->getFormattedComment();
+        }
+
+        return stream.str();
       }
 
 
@@ -212,6 +212,16 @@ namespace triton {
         if (this->ast == nullptr)
           return false;
         return this->ast->isSymbolized();
+      }
+
+
+      void SymbolicExpression::writeBackDisassembly(const std::string& disassembly) {
+        this->disassembly = disassembly;
+      }
+
+
+      const std::string& SymbolicExpression::getDisassembly(void) {
+        return this->disassembly;
       }
 
 

@@ -9,22 +9,37 @@
 #include <triton/llvmToTriton.hpp>
 
 
-
 namespace triton {
   namespace ast {
 
-    LLVMToTriton::LLVMToTriton(const SharedAstContext& actx)
-      : actx(actx) {
+    LLVMToTriton::LLVMToTriton(triton::API& api)
+      : actx(api.getAstContext()), api(&api) {
+    }
+
+
+    LLVMToTriton::LLVMToTriton(const triton::ast::SharedAstContext& ctxt)
+      : actx(ctxt), api(nullptr) {
     }
 
 
     triton::ast::SharedAbstractNode LLVMToTriton::do_convert(llvm::Value* value) {
-      llvm::Instruction* instruction = llvm::dyn_cast_or_null<llvm::Instruction>(value);
-      llvm::ConstantInt* constant    = llvm::dyn_cast_or_null<llvm::ConstantInt>(value);
       llvm::Argument* argument       = llvm::dyn_cast_or_null<llvm::Argument>(value);
+      llvm::CallInst* call           = llvm::dyn_cast_or_null<llvm::CallInst>(value);
+      llvm::ConstantInt* constant    = llvm::dyn_cast_or_null<llvm::ConstantInt>(value);
       llvm::ICmpInst* icmp           = llvm::dyn_cast_or_null<llvm::ICmpInst>(value);
+      llvm::Instruction* instruction = llvm::dyn_cast_or_null<llvm::Instruction>(value);
 
       if (instruction != nullptr) {
+
+        /* Check if the instruction is a call */
+        if (call != nullptr) {
+          if (call->getCalledFunction()->getName().find("llvm.bswap.i") != std::string::npos) {
+            return this->actx->bswap(this->do_convert(call->getOperand(0)));
+          }
+          /* We symbolize the return of call */
+          return this->var(instruction->getName().str(), instruction->getType()->getScalarSizeInBits());
+        }
+
         switch (instruction->getOpcode()) {
 
           case llvm::Instruction::AShr: {
@@ -185,6 +200,16 @@ namespace triton {
             return this->actx->zx(size - csze, node);
           }
 
+          case llvm::Instruction::Load: {
+            /* We symbolize LOAD memory access */
+            return this->var(instruction->getName().str(), instruction->getType()->getScalarSizeInBits());
+          }
+
+          case llvm::Instruction::PHI: {
+            /* We symbolize PHI node */
+            return this->var(instruction->getName().str(), instruction->getType()->getScalarSizeInBits());
+          }
+
           default:
             throw triton::exceptions::AstLifting("LLVMToTriton::do_convert(): LLVM instruction not supported");
         }
@@ -193,10 +218,28 @@ namespace triton {
         return this->actx->bv(constant->getLimitedValue(), constant->getBitWidth());
       }
       else if (argument != nullptr) {
-        return this->actx->getVariableNode(argument->getName().data());
+        return this->var(argument->getName().data(), argument->getType()->getScalarSizeInBits());
       }
 
       throw triton::exceptions::AstLifting("LLVMToTriton::do_convert(): LLVM instruction not supported");
+    }
+
+
+    SharedAbstractNode LLVMToTriton::var(const std::string &name, triton::uint32 varSize) {
+      /* Return the symbolic variable if already exists */
+      auto it = this->symvars.find(name);
+      if (it != this->symvars.end())
+        return it->second;
+
+      /* Otherwise, create a new one */
+      SharedAbstractNode node;
+      if (this->api == nullptr)
+        node = this->actx->getVariableNode(name);
+      else
+        node = this->actx->variable(this->api->newSymbolicVariable(varSize, name));
+
+      symvars[name] = node;
+      return node;
     }
 
 
@@ -204,7 +247,7 @@ namespace triton {
       /* Check if the given llvm::module contains the __triton function */
       llvm::Function* function = llvmModule->getFunction(fname);
       if (function == nullptr) {
-        throw triton::exceptions::AstLifting("LLVMToTriton::convert(): llvm::Module doesn't contain the fiven function name");
+        throw triton::exceptions::AstLifting("LLVMToTriton::convert(): llvm::Module doesn't contain the given function name");
       }
 
       /* Get the entry block of the function */
@@ -215,6 +258,11 @@ namespace triton {
 
       /* Let's convert everything */
       return this->do_convert(returnInstruction);
+    }
+
+
+    SharedAbstractNode LLVMToTriton::convert(llvm::Value* instruction) {
+      return this->do_convert(instruction);
     }
 
   }; /* ast namespace */

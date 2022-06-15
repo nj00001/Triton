@@ -5,8 +5,7 @@
 import unittest
 import os
 
-from triton import (Instruction, ARCH, CPUSIZE, MemoryAccess, MODE,
-                    TritonContext, REG)
+from triton import *
 
 
 def checkAstIntegrity(instruction):
@@ -94,7 +93,7 @@ class DefCamp2015(object):
         for phdr in phdrs:
             size   = phdr.physical_size
             vaddr  = phdr.virtual_address
-            self.Triton.setConcreteMemoryAreaValue(vaddr, phdr.content)
+            self.Triton.setConcreteMemoryAreaValue(vaddr, list(phdr.content))
 
     def test_defcamp_2015(self):
         """Load binary, self.Triton.setup environment and solve challenge with sym eval."""
@@ -346,14 +345,14 @@ class Emu1(object):
         # run the code
         pc = self.Triton.getConcreteRegisterValue(self.Triton.registers.rip)
         while pc != 0x409A18:
-            opcode = self.Triton.getConcreteMemoryAreaValue(pc, 20)
+            opcode = self.Triton.getConcreteMemoryAreaValue(pc, 16)
 
             instruction = Instruction()
             instruction.setOpcode(opcode)
             instruction.setAddress(pc)
 
             # Check if triton doesn't supports this instruction
-            self.assertTrue(self.Triton.processing(instruction))
+            self.assertTrue(self.Triton.processing(instruction) == EXCEPTION.NO_FAULT)
             self.assertTrue(checkAstIntegrity(instruction))
 
             pc = self.Triton.getConcreteRegisterValue(self.Triton.registers.rip)
@@ -439,26 +438,6 @@ class TestSymbolicEngineAlignedOnlySymbolized(BaseTestSimulation, unittest.TestC
         self.Triton.setMode(MODE.ALIGNED_MEMORY, True)
         self.Triton.setMode(MODE.ONLY_ON_SYMBOLIZED, True)
         super(TestSymbolicEngineAlignedOnlySymbolized, self).setUp()
-
-
-class TestSymbolicEngineDisable(BaseTestSimulation, unittest.TestCase):
-
-    """Testing the emulation with the symbolic engine disabled."""
-
-    def setUp(self):
-        """Define the arch and modes."""
-        self.Triton = TritonContext()
-        self.Triton.setArchitecture(ARCH.X86_64)
-        self.Triton.enableSymbolicEngine(False)
-        super(TestSymbolicEngineDisable, self).setUp()
-
-    @unittest.skip("Not possible")
-    def test_seed_coverage(self):
-        pass
-
-    @unittest.skip("Not possible")
-    def test_defcamp_2015(self):
-        pass
 
 
 class TestSymbolicEngineSymOpti(BaseTestSimulation, unittest.TestCase):
